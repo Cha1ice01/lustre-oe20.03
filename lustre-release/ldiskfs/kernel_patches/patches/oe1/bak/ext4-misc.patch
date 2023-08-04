@@ -1,0 +1,92 @@
+From 4986e4874eba775e409b2fb575bd5a980d15ecb3 Mon Sep 17 00:00:00 2001
+From: root <root@localhost.localdomain>
+Date: Wed, 28 Jun 2023 18:57:58 +0800
+Subject: [PATCH] ext4 misc
+
+Signed-off-by: root <root@localhost.localdomain>
+---
+ fs/ext4/ext4.h  | 7 +++++++
+ fs/ext4/namei.c | 7 ++++---
+ fs/ext4/super.c | 8 ++++----
+ 3 files changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/fs/ext4/ext4.h b/fs/ext4/ext4.h
+index eb0f536..da1f024 100644
+--- a/fs/ext4/ext4.h
++++ b/fs/ext4/ext4.h
+@@ -3274,6 +3274,13 @@ struct ext4_extent;
+ #define EXT_MAX_BLOCKS	0xffffffff
+ 
+ extern int ext4_ext_tree_init(handle_t *handle, struct inode *);
++extern struct buffer_head *ext4_read_inode_bitmap(struct super_block *sb,
++                                                 ext4_group_t block_group);
++extern void ext4_inc_count(handle_t *handle, struct inode *inode);
++extern void ext4_dec_count(handle_t *handle, struct inode *inode);
++extern struct buffer_head *ext4_append(handle_t *handle,
++                                      struct inode *inode,
++                                      ext4_lblk_t *block);
+ extern int ext4_ext_writepage_trans_blocks(struct inode *, int);
+ extern int ext4_ext_index_trans_blocks(struct inode *inode, int extents);
+ extern int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
+diff --git a/fs/ext4/namei.c b/fs/ext4/namei.c
+index 2a4599a..7d0524e 100644
+--- a/fs/ext4/namei.c
++++ b/fs/ext4/namei.c
+@@ -2460,24 +2460,25 @@ EXPORT_SYMBOL(ext4_delete_entry);
+  * for checking S_ISDIR(inode) (since the INODE_INDEX feature will not be set
+  * on regular files) and to avoid creating huge/slow non-HTREE directories.
+  */
+-static void ext4_inc_count(handle_t *handle, struct inode *inode)
++void ext4_inc_count(handle_t *handle, struct inode *inode)
+ {
+ 	inc_nlink(inode);
+ 	if (is_dx(inode) &&
+ 	    (inode->i_nlink > EXT4_LINK_MAX || inode->i_nlink == 2))
+ 		set_nlink(inode, 1);
+ }
++EXPORT_SYMBOL(ext4_inc_count);
+ 
+ /*
+  * If a directory had nlink == 1, then we should let it be 1. This indicates
+  * directory has >EXT4_LINK_MAX subdirs.
+  */
+-static void ext4_dec_count(handle_t *handle, struct inode *inode)
++void ext4_dec_count(handle_t *handle, struct inode *inode)
+ {
+ 	if (!S_ISDIR(inode->i_mode) || inode->i_nlink > 2)
+ 		drop_nlink(inode);
+ }
+-
++EXPORT_SYMBOL(ext4_dec_count);
+ 
+ /*
+  * Add non-directory inode to a directory. On success, the inode reference is
+diff --git a/fs/ext4/super.c b/fs/ext4/super.c
+index 7caad78..bc47dfb 100644
+--- a/fs/ext4/super.c
++++ b/fs/ext4/super.c
+@@ -6418,8 +6418,8 @@ static int __init ext4_init_fs(void)
+ 	err = init_inodecache();
+ 	if (err)
+ 		goto out1;
+-	register_as_ext3();
+-	register_as_ext2();
++	
++
+ 	err = register_filesystem(&ext4_fs_type);
+ 	if (err)
+ 		goto out;
+@@ -6429,8 +6429,8 @@ static int __init ext4_init_fs(void)
+ 		printk(KERN_ERR "EXT4-fs: Cannot create netlink socket.\n");
+ 	return 0;
+ out:
+-	unregister_as_ext2();
+-	unregister_as_ext3();
++	
++	
+ 	destroy_inodecache();
+ out1:
+ 	ext4_exit_mballoc();
+-- 
+2.27.0
+

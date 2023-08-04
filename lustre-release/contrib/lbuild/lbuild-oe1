@@ -1,0 +1,143 @@
+source ${LBUILD_DIR}/lbuild-rhel
+# increment this if you have made a change that should force a new kernel
+# to build built
+BUILD_GEN+=".0"
+SPEC_NAME="kernel.spec"
+DEVEL_PATH_ARCH_DELIMETER="."
+USE_KABI=false
+RPM_HELPERS_DIR="/usr/lib/rpm/openEuler"
+# Pkg which contains kernel source code
+KERNEL_DEBUGINFO="kernel-debugsource-${lnxmaj}-${lnxrel}.${TARGET_ARCH}.rpm"
+
+# force local definition of %dist into ~/.rpmmacros
+# to avoid verbose extended strings like ".el9.centos"
+# in kernel version and rpm names
+#
+RMAC=$HOME/.rpmmacros
+grep '^%dist' $RMAC &> /dev/null || echo '%dist .oe1' >> $RMAC
+
+patch_spec() {
+    # the el8 .spec file requires patch names to begin with "patch-3."
+    # so rename the lustre patch from lbuild to one the .spec will like
+    mv $TOPDIR/SOURCES/linux-${lnxmaj}-lustre.patch \
+	$TOPDIR/SOURCES/patch-${lnxmaj}-lustre.patch
+
+    # edit the SPEC with our changes
+    sed -i \
+        -e '/^Source2001: cpupower.config/a\
+\
+# adds Lustre patches\
+Patch99995: patch-%{version}-lustre.patch' \
+        -e '/^cp %{SOURCE13} certs/a\
+\
+# lustre patch\
+%patch99995 -p1 -F1' \
+        -e '/^cp -a scripts $RPM_BUILD_ROOT\/lib\/modules\/%{KernelVer}\/build/a\
+\
+# copy ext4 source files\
+cp -a fs/ext4/* $RPM_BUILD_ROOT/lib/modules/%{KernelVer}/build/fs/ext4\
+rm -f $RPM_BUILD_ROOT/lib/modules/%{KernelVer}/build/fs/ext4/ext4-inode-test*\
+' \
+        -e 's/^%define with_kabichk 1/%define with_kabichk 0/' \
+          SPECS/$SPEC_NAME 2>&1 || \
+        fatal 1 "Error while editing SPECS/$SPEC_NAME"
+
+
+    return 0
+
+}
+
+unpack_linux_devel_rpm-oe1() {
+	local callers_rpm="$1"
+
+	unpack_linux_devel_rpm-rhel "$callers_rpm"
+}
+
+get_rpmbuildopts() {
+
+    if $KERNEL_LUSTRE_NAMING; then
+        echo -e "--define \"variant -lustre\" \c"
+    fi
+    echo "--with firmware --without debug"
+
+    return 0
+}
+
+prepare_and_build_srpm() {
+
+	pushd $TOPDIR >/dev/null
+	# create the buildid
+	if $ENABLE_KERNEL_DEBUG; then
+		local buildid="_lustre_debug${EXTRA_VERSION##*_lustre}"
+	else
+		local buildid="_lustre${EXTRA_VERSION##*_lustre}"
+	fi
+
+	# edit the SPEC with our changes
+	patch_spec
+	popd >/dev/null
+
+	# copy our .config into the RPM build tree
+	# (TODO): openEuler keep its config in arch/xxx/configs/
+	# we can override it at build stage before make .config, maybe
+	#local cfg_file_name=kernel-${TARGET_ARCH}.config
+	#(echo "# $(basearch ${TARGET_ARCH})"; cat $CONFIG_FILE) > \
+	#	SOURCES/$cfg_file_name
+
+	# do we need any special rpm build options
+	local rpmbuildopt="-bb"
+	if $DO_SRC; then
+		rpmbuildopt="-ba"
+	fi
+
+	# XXX - need to figure this kabichk crap out -- it fails the build
+	# and openEuler hard code it as enabled, patch_spec make it as disabled
+	#if ! $USE_KABI; then
+	#	rpmbuildopt="$rpmbuildopt --without kabichk"
+	#fi
+
+	# get any release specific build options
+	rpmbuildopt="$rpmbuildopt $(get_rpmbuildopts)"
+
+	# now build it
+	if ! eval rpmbuild $rpmbuildopt --target ${TARGET_ARCH} \
+		--define \"_topdir $TOPDIR\" \
+		${buildid:+--define \"extra_release $buildid\"} \
+		--define \"_tmppath $TMPDIR\" \
+		$TOPDIR/SPECS/$SPEC_NAME 2>&1; then
+		return 1
+	fi
+
+	return 0
+}
+
+find_linux_rpm-oe1() {
+	local prefix="$1"
+	local wanted_kernel="$2"
+	local pathtorpms=${3:-"$KERNELRPMSBASE/$lnxmaj/$DISTROMAJ/$TARGET_ARCH"}
+	find_linux_rpm-rhel "$prefix" "$wanted_kernel" "$pathtorpms"
+}
+
+kernel_srpm_location() {
+	local base_os="https://repo.openeuler.org/openEuler-20.03-LTS"
+
+	echo "$base_os/update/source/Packages/"
+}
+
+kernel_debuginfo_location() {
+	local base_os="https://repo.openeuler.org/openEuler-20.03-LTS"
+
+	echo "$base_os/update/$TARGET_ARCH/Packages/"
+}
+
+cleanup_rpmmacros() {
+	sed -i "/^%kernel_module_package/,/^)}$/d" $RMAC
+}
+
+apply_kmod_requires_conflicts() {
+	if $PATCHLESS; then
+		# don't allow the patched kernel to be considered as
+		# a valid kernel for the patchless client
+		echo "Conflicts:      kernel-lustre" >> rpm/kmp-lustre.preamble
+	fi
+}

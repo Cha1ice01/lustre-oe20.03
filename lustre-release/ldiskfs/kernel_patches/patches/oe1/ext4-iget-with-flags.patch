@@ -1,0 +1,26 @@
+From be553bfa24b3d2ce3bc2a6bb7d4b5d9271f83adb Mon Sep 17 00:00:00 2001
+From: root <root@localhost.localdomain>
+Date: Mon, 17 Jul 2023 17:18:38 +0800
+Subject: [PATCH] ext4 iget with flags
+
+Signed-off-by: root <root@localhost.localdomain>
+---
+ fs/ext4/inode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c
+index d04d73b..f03c29e 100644
+--- a/fs/ext4/inode.c
++++ b/fs/ext4/inode.c
+@@ -6414,7 +6414,7 @@ int ext4_filemap_fault(struct vm_fault *vmf)
+ }
+ EXPORT_SYMBOL(ext4_map_blocks);
+ EXPORT_SYMBOL(ext4_truncate);
+-EXPORT_SYMBOL(ext4_iget);
++EXPORT_SYMBOL(__ext4_iget);
+ EXPORT_SYMBOL(ext4_bread);
+ EXPORT_SYMBOL(ext4_itable_unused_count);
+ EXPORT_SYMBOL(ext4_force_commit);
+-- 
+2.27.0
+

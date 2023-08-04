@@ -1,0 +1,28 @@
+From 544db3c5d06bef765faa7abbb0338cd2b6d2f371 Mon Sep 17 00:00:00 2001
+From: root <root@localhost.localdomain>
+Date: Thu, 29 Jun 2023 17:45:32 +0800
+Subject: [PATCH] export ext4fs dirhash helper
+
+Signed-off-by: root <root@localhost.localdomain>
+---
+ fs/ext4/hash.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/fs/ext4/hash.c b/fs/ext4/hash.c
+index 283dcaf..bd7bff3 100644
+--- a/fs/ext4/hash.c
++++ b/fs/ext4/hash.c
+@@ -197,6 +197,10 @@ EXPORT_SYMBOL(__ext4fs_dirhash);
+  * represented, and whether or not the returned hash is 32 bits or 64
+  * bits.  32 bit hashes will return 0 for the minor hash.
+  */
++int __ext4fs_dirhash(const char *name, int len,
++                    struct dx_hash_info *hinfo)
++EXPORT_SYMBOL(__ext4fs_dirhash);
++
+ int ext4fs_dirhash(const char *name, int len, struct dx_hash_info *hinfo)
+ {
+ 	__u32	hash;
+-- 
+2.27.0
+
